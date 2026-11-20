@@ -3,6 +3,7 @@ target/
 .env
 .env.*
 !.env.example
+/output/pdf/*_Projeto_Back_End.PDF
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

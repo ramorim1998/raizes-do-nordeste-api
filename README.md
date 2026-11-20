@@ -1,12 +1,25 @@
 # Raízes do Nordeste API
 
-API REST para administrar catálogo e estoque por filial, registrar pedidos de cinco canais e simular o pagamento. A aplicação usa Java 21, Spring Boot 4.1.2, Maven, PostgreSQL 16 e Flyway.
+API REST para administrar catálogo e estoque por filial, registrar pedidos de cinco canais e acompanhar pagamento, preparo e entrega. O MVP também reúne cadastro de usuários, autorização por perfil e auditoria.
+
+## Pré-requisitos
+
+- Java 21 e PostgreSQL 16.
+- Maven Wrapper configurado com Maven 3.10.1. A aplicação usa Spring Boot 4.1.2 e Flyway.
+- PowerShell 7 para os comandos Windows abaixo. A primeira execução do Wrapper pode precisar de conexão para baixar dependências.
 
 ## Executar localmente
 
-1. Crie `raizes_db` com `raizes_app` como proprietário no PostgreSQL. A configuração padrão usa `localhost:5433`. Ajuste `DB_URL` e `DB_USERNAME` para outra instalação.
-2. Copie `.env.example` para `.env` e preencha a senha do banco. No PowerShell 7, gere a chave JWT com `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` e coloque o resultado em `RAIZES_JWT_SECRET`.
-3. Preencha os pares `RAIZES_ADMIN_EMAIL` e `RAIZES_ADMIN_PASSWORD`, e `RAIZES_OPERADOR_EMAIL` e `RAIZES_OPERADOR_PASSWORD` para criar as contas iniciais. Use senhas com pelo menos 12 caracteres e até 72 bytes em UTF-8. A inicialização preserva as credenciais de contas existentes.
+Em uma instalação nova, crie `raizes_db` com `raizes_app` como proprietário. A configuração padrão usa `localhost:5433`. `createuser` solicita a senha que será usada em `DB_PASSWORD`.
+
+```powershell
+createuser --host=localhost --port=5433 --username=postgres --pwprompt raizes_app
+createdb --host=localhost --port=5433 --username=postgres --owner=raizes_app raizes_db
+```
+
+1. Copie `.env.example` para `.env` e preencha a senha do banco. Se necessário, ajuste `DB_URL` e `DB_USERNAME`.
+2. No PowerShell 7, gere a chave JWT com `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` e coloque o resultado em `RAIZES_JWT_SECRET`.
+3. Preencha `RAIZES_ADMIN_EMAIL` e `RAIZES_ADMIN_PASSWORD` para criar a conta administrativa inicial. Os pares `RAIZES_OPERADOR_EMAIL` e `RAIZES_OPERADOR_PASSWORD`, e `RAIZES_COZINHA_EMAIL` e `RAIZES_COZINHA_PASSWORD` são opcionais. Use e-mails distintos e senhas com pelo menos 12 caracteres e até 72 bytes em UTF-8. A inicialização preserva as credenciais de contas existentes. O administrador também pode criar contas pela API.
 4. Na raiz do projeto, carregue as variáveis e inicie a aplicação na mesma sessão do PowerShell.
 
 ```powershell
@@ -18,47 +31,49 @@ Get-Content .env | ForEach-Object {
 .\mvnw.cmd spring-boot:run
 ```
 
-Com Maven instalado, `mvn spring-boot:run` também funciona. O Flyway aplica as migrations versionadas e o Hibernate valida o mapeamento JPA. A V1 contém as tabelas de catálogo e estoque, a V2 adiciona pedidos, pagamentos e auditoria e a V3 cria os usuários.
+Com Maven instalado, `mvn spring-boot:run` também funciona. O Flyway aplica as migrations em ordem e o Hibernate valida o mapeamento JPA na inicialização.
+
+| Migration | Alteração |
+| --- | --- |
+| V1 | Catálogo, unidades, cardápio e estoque |
+| V2 | Pedidos, itens, pagamentos, eventos e movimentações de estoque |
+| V3 | Usuários e perfis iniciais |
+| V4 | Etapas operacionais, cancelamento, filtro por canal e ator nos eventos de pedido |
+| V5 | Perfil `COZINHA` e auditoria de cadastro e consulta de usuários |
+| V6 | Saídas manuais de estoque |
 
 Para gerar o JAR executável, rode `.\mvnw.cmd package`. Em seguida, com as mesmas variáveis de ambiente carregadas, use `java -jar .\target\raizes-api-0.0.1-SNAPSHOT.jar`.
 
 ## API e acesso
 
-A API usa `http://localhost:8080`. Acesse o [Swagger UI](http://localhost:8080/swagger-ui.html) ou consulte o [OpenAPI JSON](http://localhost:8080/v3/api-docs). Envie `email` e `senha` ao endpoint de login e use o `token` retornado em `Authorization: Bearer <token>`. A validade padrão é de 900 segundos.
+A API usa `http://localhost:8080`. No [Swagger UI](http://localhost:8080/swagger-ui.html), execute `POST /auth/login` com as credenciais e cole o valor de `token` no botão **Authorize**. Em outros clientes, envie `Authorization: Bearer <token>`. O prazo padrão é de 900 segundos e pode ser ajustado por `RAIZES_JWT_TTL_SECONDS`. O contrato também está disponível em [OpenAPI JSON](http://localhost:8080/v3/api-docs) e [OpenAPI YAML](http://localhost:8080/v3/api-docs.yaml).
 
-| Método e rota | Operação | Acesso |
-| --- | --- | --- |
-| `POST /auth/login` | Emitir token JWT | Público |
-| `POST /produtos`, `POST /unidades` | Cadastrar produto ou unidade | ADMIN |
-| `GET /produtos`, `GET /produtos/{id}`, `GET /unidades`, `GET /unidades/{id}` | Consultar o catálogo global e as unidades | ADMIN, OPERADOR |
-| `POST /unidades/{unidadeId}/cardapio` | Associar produto existente à unidade com preço em reais | ADMIN |
-| `GET /unidades/{unidadeId}/cardapio`, `GET /unidades/{unidadeId}/cardapio/{produtoUnidadeId}` | Consultar o cardápio da unidade | ADMIN, OPERADOR |
-| `GET /unidades/{unidadeId}/estoque` | Consultar estoque físico, reservado e disponível | ADMIN, OPERADOR |
-| `POST /unidades/{unidadeId}/estoque/{produtoUnidadeId}/reposicoes` | Adicionar estoque físico | ADMIN, OPERADOR |
-| `POST /pedidos`, `GET /pedidos`, `GET /pedidos/{id}` | Criar e consultar pedidos | ADMIN, OPERADOR |
-| `POST /pedidos/{pedidoId}/pagamentos` | Registrar resultado do pagamento simulado | ADMIN, OPERADOR |
-| `GET /pedidos/{pedidoId}/eventos` | Consultar histórico de estados | ADMIN |
+- `ADMIN` gerencia contas, consulta auditorias e executa todas as operações de catálogo, estoque e pedido.
+- `OPERADOR` consulta o catálogo, movimenta estoque, cria e cancela pedidos dentro da regra de negócio, solicita pagamentos e confirma entregas.
+- `COZINHA` consulta pedidos, inicia o preparo e marca pedidos como prontos.
 
-Associe um produto à unidade com `{"produtoId":1,"preco":12.50}`. Use o `id` retornado como `produtoUnidadeId` ao repor estoque com `{"quantidade":5}` e ao montar o pedido.
+As listagens recebem `page` a partir de zero e `size` entre 1 e 100. Os padrões são `page=0` e `size=20`. A resposta inclui `conteudo`, `pagina`, `tamanho`, `totalElementos` e `totalPaginas`. Para filtrar pelo canal de origem, use `GET /pedidos?canalPedido=TOTEM&page=0&size=20`. Consulte a [referência de contratos](docs/contratos-api.md) para exemplos por rota, códigos de erro e permissões.
 
-```json
-{
-  "unidadeId": 1,
-  "canal": "APP",
-  "itens": [{"produtoUnidadeId": 1, "quantidade": 2}]
-}
-```
+## Fluxo de demonstração
 
-Os canais aceitos são `APP`, `TOTEM`, `BALCAO`, `PICKUP` e `WEB`. O servidor usa o preço do cardápio para calcular o total e reservar estoque. Simule a aprovação com `{"aprovado":true}` ou a recusa com `{"aprovado":false}`. A aprovação baixa o estoque e a recusa devolve o saldo reservado. Cada pedido admite um resultado de pagamento.
+1. Como `ADMIN`, cadastre um produto, uma unidade e a relação do produto no cardápio. Guarde o identificador dessa relação para movimentar estoque e montar o pedido.
+2. Como `OPERADOR`, faça uma reposição e crie um pedido para o `canalPedido` `TOTEM` ou outro canal suportado. A criação reserva o estoque e captura o preço do cardápio.
+3. Envie `{"aprovado":true}` ao simulador de pagamento para baixar o estoque e marcar o pedido como `PAGO`. Um pagamento recusado libera a reserva e marca `PAGAMENTO_RECUSADO`. Uma indisponibilidade retorna `503` e mantém a reserva para nova tentativa.
+4. Com o pedido pago, `COZINHA` move o status para `EM_PREPARO` e depois `PRONTO`. `OPERADOR` confirma `ENTREGUE`. O cancelamento é permitido enquanto o pedido aguarda pagamento e libera as reservas.
+5. Como `ADMIN`, consulte os eventos do pedido e a auditoria de usuários. Consulte também o saldo e as movimentações da unidade.
 
-Os erros usam `application/problem+json`. Os códigos relevantes são `400` para entrada inválida, `401` para autenticação ausente ou inválida, `403` para acesso fora do perfil, `404` para recurso ausente e `409` para conflito de estado ou de estoque.
+Os erros usam `application/problem+json`. A API responde com `400` para entrada inválida, `401` para autenticação ausente ou inválida, `403` para acesso fora do perfil, `404` para recurso ausente, `409` para conflito e `503` para indisponibilidade simulada do pagamento.
 
 ## Testes e documentação
 
-Execute `./mvnw test` ou `.\mvnw.cmd test`. A suíte usa H2 em modo PostgreSQL por padrão, aplica as migrations e testa autenticação, autorização, cadastro, reserva concorrente e pagamento. Para repetir contra PostgreSQL, use um **banco de testes vazio** e configure `RAIZES_TEST_DB_URL`, `RAIZES_TEST_DB_USERNAME` e `RAIZES_TEST_DB_PASSWORD` antes de executar os testes.
+Execute `./mvnw test` ou `.\mvnw.cmd test`. A suíte usa H2 em modo PostgreSQL por padrão e aplica as migrations. Para executar os testes com PostgreSQL, use um **banco de testes vazio** e configure `RAIZES_TEST_DB_URL`, `RAIZES_TEST_DB_USERNAME` e `RAIZES_TEST_DB_PASSWORD`.
 
-Importe a [coleção Postman](docs/raizes-api.postman_collection.json) e preencha `baseUrl`, os e-mails e as senhas nas variáveis de execução. Faça os cenários em ordem para que os IDs e tokens obtidos sejam usados nas requisições seguintes.
+Importe a [coleção Postman](docs/raizes-api.postman_collection.json) e use uma instância de teste da API. Defina `baseUrl`, `adminEmail`, `adminPassword`, `operadorEmail`, `operadorPassword`, `cozinhaEmail` e `cozinhaPassword` nas variáveis da coleção. Use as contas iniciais para `ADMIN` e `OPERADOR` e escolha um e-mail de teste ainda livre para `COZINHA`, cuja conta é criada durante o teste.
 
-Na validação da entrega, os 26 cenários da coleção passaram por HTTP com um PostgreSQL 16 temporário. Os testes adicionais de concorrência retornaram um `201` e um `409` em cada disputa pela última unidade e pelo pagamento do mesmo pedido.
+No Runner, execute as pastas em ordem de **01 Autenticação e perfis** até **04 Operação e auditoria**, passando por **02 Catálogo e estoque** e **03 Pedidos e pagamento**. As requisições gravam tokens e identificadores nas variáveis da coleção. Use o [plano e as evidências de testes](docs/evidencias-testes.md) para conferir as entradas e saídas de cada cenário.
 
-A [especificação](docs/especificacao.md) reúne requisitos, diagramas, decisões de privacidade e as propostas de fidelidade e promoções. O [relatório acadêmico](output/pdf/relatorio-raizes-do-nordeste.pdf) consolida o projeto.
+A [especificação](docs/especificacao.md) reúne requisitos, diagramas, decisões de privacidade e as propostas de fidelidade e promoções. O [checklist de entrega](docs/checklist-entrega.md) indica as evidências e as etapas externas pendentes.
+
+## Entrega acadêmica local
+
+O histórico de desenvolvimento está no Git local. O relatório identificado está em `output/pdf`, separado do Git. A publicação do repositório e a submissão na área de Trabalhos do AVA são etapas pendentes.
