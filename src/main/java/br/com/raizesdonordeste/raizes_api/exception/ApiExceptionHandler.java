@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,6 +25,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflitoException.class)
     public ProblemDetail tratarConflito(ConflitoException exception) {
         return problema(HttpStatus.CONFLICT, "Conflito", exception.getMessage());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail tratarAcessoNegado(AccessDeniedException exception) {
+        return problema(HttpStatus.FORBIDDEN, "Acesso negado", "O seu perfil não pode executar esta operação.");
+    }
+
+    @ExceptionHandler(GatewayPagamentoIndisponivelException.class)
+    public ResponseEntity<ProblemDetail> tratarGatewayIndisponivel(GatewayPagamentoIndisponivelException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header(HttpHeaders.RETRY_AFTER, "1")
+            .body(problema(HttpStatus.SERVICE_UNAVAILABLE, "Pagamento temporariamente indisponível", exception.getMessage()));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

@@ -3,9 +3,11 @@ package br.com.raizesdonordeste.raizes_api.controller;
 import br.com.raizesdonordeste.raizes_api.dto.PagamentoRequest;
 import br.com.raizesdonordeste.raizes_api.dto.PagamentoResponse;
 import br.com.raizesdonordeste.raizes_api.service.PagamentoService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,7 +24,10 @@ public class PagamentoController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PagamentoResponse simular(@PathVariable Long pedidoId, @Valid @RequestBody PagamentoRequest request) {
-        return pagamentoService.simular(pedidoId, request);
+    @Operation(summary = "Solicita pagamento ao gateway simulado",
+        description = "Em indisponibilidade simulada, a reserva continua ativa para uma nova tentativa.")
+    public PagamentoResponse simular(@PathVariable Long pedidoId, @Valid @RequestBody PagamentoRequest request,
+                                     Authentication autenticacao) {
+        return pagamentoService.simular(pedidoId, request, Long.valueOf(autenticacao.getName()));
     }
 }

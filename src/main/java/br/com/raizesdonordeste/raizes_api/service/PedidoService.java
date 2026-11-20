@@ -3,14 +3,17 @@ package br.com.raizesdonordeste.raizes_api.service;
 import br.com.raizesdonordeste.raizes_api.dto.EventoPedidoResponse;
 import br.com.raizesdonordeste.raizes_api.dto.ItemPedidoRequest;
 import br.com.raizesdonordeste.raizes_api.dto.ItemPedidoResponse;
+import br.com.raizesdonordeste.raizes_api.dto.PaginaResponse;
 import br.com.raizesdonordeste.raizes_api.dto.PedidoRequest;
 import br.com.raizesdonordeste.raizes_api.dto.PedidoResponse;
+import br.com.raizesdonordeste.raizes_api.entity.CanalPedido;
 import br.com.raizesdonordeste.raizes_api.entity.Estoque;
 import br.com.raizesdonordeste.raizes_api.entity.EventoPedido;
 import br.com.raizesdonordeste.raizes_api.entity.ItemPedido;
 import br.com.raizesdonordeste.raizes_api.entity.MovimentacaoEstoque;
 import br.com.raizesdonordeste.raizes_api.entity.Pedido;
 import br.com.raizesdonordeste.raizes_api.entity.ProdutoUnidade;
+import br.com.raizesdonordeste.raizes_api.entity.StatusPedido;
 import br.com.raizesdonordeste.raizes_api.entity.TipoMovimentacaoEstoque;
 import br.com.raizesdonordeste.raizes_api.entity.Unidade;
 import br.com.raizesdonordeste.raizes_api.exception.ConflitoException;
@@ -26,7 +29,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -41,9 +48,10 @@ public class PedidoService {
     private final EstoqueRepository estoqueRepository;
     private final MovimentacaoEstoqueRepository movimentacaoRepository;
     private final EventoPedidoRepository eventoRepository;
+    private final EncerramentoReservaPedido encerramentoReserva;
 
     @Transactional
-    public PedidoResponse criar(@NotNull @Valid PedidoRequest request) {
+    public PedidoResponse criar(@NotNull @Valid PedidoRequest request, Long usuarioId) {
         Unidade unidade = unidadeRepository.findById(request.unidadeId())
             .orElseThrow(() -> new RecursoNaoEncontradoException(
                 "Unidade não encontrada com id " + request.unidadeId()
@@ -52,10 +60,10 @@ public class PedidoService {
             throw new ConflitoException("A unidade está inativa");
         }
 
-        Pedido pedido = new Pedido(unidade, request.canal());
+        Pedido pedido = new Pedido(unidade, request.canalPedido());
         List<MovimentacaoEstoque> movimentos = new ArrayList<>();
 
-        // Reservas e pagamentos bloqueiam o estoque na mesma ordem para evitar impasses.
+        // Reserva, pagamento e cancelamento adquirem bloqueios de estoque na mesma ordem.
         for (var item : itensOrdenados(request.itens()).entrySet()) {
             Long produtoUnidadeId = item.getKey();
             int quantidade = item.getValue();
@@ -73,15 +81,19 @@ public class PedidoService {
 
         Pedido salvo = pedidoRepository.save(pedido);
         movimentacaoRepository.saveAll(movimentos);
-        eventoRepository.save(new EventoPedido(salvo, null));
+        eventoRepository.save(new EventoPedido(salvo, null, usuarioId));
         return paraResponse(salvo);
     }
 
     @Transactional(readOnly = true)
-    public List<PedidoResponse> listar() {
-        return pedidoRepository.findAllByOrderByIdDesc().stream()
-            .map(PedidoService::paraResponse)
-            .toList();
+    public PaginaResponse<PedidoResponse> listar(CanalPedido canalPedido, Pageable pagina) {
+        Page<Long> ids = canalPedido == null ? pedidoRepository.paginarIds(pagina)
+            : pedidoRepository.paginarIdsPorCanal(canalPedido, pagina);
+        Map<Long, Pedido> pedidos = ids.hasContent()
+            ? pedidoRepository.buscarComItens(ids.getContent()).stream()
+                .collect(Collectors.toMap(Pedido::getId, Function.identity()))
+            : Map.of();
+        return PaginaResponse.de(ids.map(id -> paraResponse(pedidos.get(id))));
     }
 
     @Transactional(readOnly = true)
@@ -92,15 +104,38 @@ public class PedidoService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventoPedidoResponse> listarEventos(Long pedidoId) {
+    public PaginaResponse<EventoPedidoResponse> listarEventos(Long pedidoId, Pageable pagina) {
         if (!pedidoRepository.existsById(pedidoId)) {
             throw new RecursoNaoEncontradoException("Pedido não encontrado com id " + pedidoId);
         }
-        return eventoRepository.findByPedido_IdOrderByIdAsc(pedidoId).stream()
+        return PaginaResponse.de(eventoRepository.findByPedido_IdOrderByIdAsc(pedidoId, pagina)
             .map(evento -> new EventoPedidoResponse(
-                evento.getId(), pedidoId, evento.getStatusAnterior(), evento.getStatusNovo(), evento.getRegistradoEm()
-            ))
-            .toList();
+                evento.getId(), pedidoId, evento.getStatusAnterior(), evento.getStatusNovo(),
+                evento.getRegistradoEm(), evento.getUsuarioId()
+            )));
+    }
+
+    @Transactional
+    public PedidoResponse atualizarStatus(Long id, StatusPedido novoStatus, Long usuarioId) {
+        Pedido pedido = buscarParaAtualizar(id);
+        StatusPedido statusAnterior = pedido.getStatus();
+        pedido.avancarPara(novoStatus);
+        eventoRepository.save(new EventoPedido(pedido, statusAnterior, usuarioId));
+        return paraResponse(pedido);
+    }
+
+    @Transactional
+    public void cancelar(Long id, Long usuarioId) {
+        Pedido pedido = buscarParaAtualizar(id);
+        StatusPedido statusAnterior = pedido.getStatus();
+        pedido.cancelar();
+        encerramentoReserva.encerrar(pedido, false);
+        eventoRepository.save(new EventoPedido(pedido, statusAnterior, usuarioId));
+    }
+
+    private Pedido buscarParaAtualizar(Long id) {
+        return pedidoRepository.buscarParaAtualizar(id)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado com id " + id));
     }
 
     private static Map<Long, Integer> itensOrdenados(List<ItemPedidoRequest> itens) {
@@ -124,7 +159,7 @@ public class PedidoService {
 
     private static PedidoResponse paraResponse(Pedido pedido) {
         return new PedidoResponse(
-            pedido.getId(), pedido.getUnidade().getId(), pedido.getCanal(), pedido.getStatus(), pedido.getTotal(),
+            pedido.getId(), pedido.getUnidade().getId(), pedido.getCanalPedido(), pedido.getStatus(), pedido.getTotal(),
             pedido.getItens().stream().map(PedidoService::paraItemResponse).toList(), pedido.getCriadoEm()
         );
     }

@@ -1,5 +1,6 @@
 package br.com.raizesdonordeste.raizes_api.service;
 
+import br.com.raizesdonordeste.raizes_api.dto.PaginaResponse;
 import br.com.raizesdonordeste.raizes_api.dto.ProdutoRequest;
 import br.com.raizesdonordeste.raizes_api.dto.ProdutoResponse;
 import br.com.raizesdonordeste.raizes_api.entity.Produto;
@@ -7,7 +8,7 @@ import br.com.raizesdonordeste.raizes_api.exception.RecursoNaoEncontradoExceptio
 import br.com.raizesdonordeste.raizes_api.repository.ProdutoRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -29,10 +30,8 @@ public class ProdutoService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProdutoResponse> listar() {
-        return produtoRepository.findAll().stream()
-            .map(ProdutoService::paraResponse)
-            .toList();
+    public PaginaResponse<ProdutoResponse> listar(Pageable pagina) {
+        return PaginaResponse.de(produtoRepository.findAll(pagina).map(ProdutoService::paraResponse));
     }
 
     @Transactional(readOnly = true)

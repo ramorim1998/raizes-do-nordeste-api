@@ -9,7 +9,7 @@ import java.util.List;
 public record PedidoResponse(
     Long id,
     Long unidadeId,
-    CanalPedido canal,
+    CanalPedido canalPedido,
     StatusPedido status,
     BigDecimal total,
     List<ItemPedidoResponse> itens,

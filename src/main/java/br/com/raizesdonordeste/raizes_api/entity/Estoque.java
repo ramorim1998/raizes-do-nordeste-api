@@ -51,11 +51,20 @@ public class Estoque {
     }
 
     public void reservar(int quantidade) {
+        validarDisponibilidade(quantidade);
+        quantidadeReservada += quantidade;
+    }
+
+    public void retirar(int quantidade) {
+        validarDisponibilidade(quantidade);
+        quantidadeFisica -= quantidade;
+    }
+
+    private void validarDisponibilidade(int quantidade) {
         validarQuantidadePositiva(quantidade);
         if (quantidade > getQuantidadeDisponivel()) {
             throw new ConflitoException("Estoque insuficiente para o item " + produtoUnidade.getId());
         }
-        quantidadeReservada += quantidade;
     }
 
     public void baixarReserva(int quantidade) {

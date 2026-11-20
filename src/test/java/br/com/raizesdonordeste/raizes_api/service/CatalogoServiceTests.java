@@ -11,7 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import br.com.raizesdonordeste.raizes_api.dto.ProdutoUnidadeRequest;
-import br.com.raizesdonordeste.raizes_api.dto.ReposicaoEstoqueRequest;
+import br.com.raizesdonordeste.raizes_api.dto.QuantidadeEstoqueRequest;
 import br.com.raizesdonordeste.raizes_api.entity.Estoque;
 import br.com.raizesdonordeste.raizes_api.entity.MovimentacaoEstoque;
 import br.com.raizesdonordeste.raizes_api.entity.Produto;
@@ -82,7 +82,7 @@ class CatalogoServiceTests {
         Estoque estoque = criarEstoque();
         when(estoques.buscarParaAtualizar(3L)).thenReturn(Optional.of(estoque));
 
-        var resultado = service.repor(1L, 3L, new ReposicaoEstoqueRequest(7));
+        var resultado = service.repor(1L, 3L, new QuantidadeEstoqueRequest(7));
 
         assertEquals(7, resultado.quantidadeDisponivel());
         verify(movimentacoes).save(any(MovimentacaoEstoque.class));
@@ -94,7 +94,7 @@ class CatalogoServiceTests {
         Estoque estoque = criarEstoque();
         when(estoques.buscarParaAtualizar(3L)).thenReturn(Optional.of(estoque));
 
-        assertThrows(RecursoNaoEncontradoException.class, () -> service.repor(4L, 3L, new ReposicaoEstoqueRequest(7)));
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.repor(4L, 3L, new QuantidadeEstoqueRequest(7)));
         assertEquals(0, estoque.getQuantidadeFisica());
         verifyNoInteractions(movimentacoes);
     }

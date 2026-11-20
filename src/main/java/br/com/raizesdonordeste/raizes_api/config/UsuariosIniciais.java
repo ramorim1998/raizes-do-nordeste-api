@@ -6,6 +6,7 @@ import br.com.raizesdonordeste.raizes_api.entity.Usuario;
 import br.com.raizesdonordeste.raizes_api.repository.UsuarioRepository;
 import jakarta.validation.Validator;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumMap;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
@@ -30,13 +31,19 @@ public class UsuariosIniciais implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        LoginRequest admin = obterCredenciais("RAIZES_ADMIN");
-        LoginRequest operador = obterCredenciais("RAIZES_OPERADOR");
-        if (admin != null && operador != null && admin.email().equals(operador.email())) {
+        var credenciaisIniciais = new EnumMap<PerfilUsuario, LoginRequest>(PerfilUsuario.class);
+        for (PerfilUsuario perfil : PerfilUsuario.values()) {
+            LoginRequest credenciais = obterCredenciais("RAIZES_" + perfil.name());
+            if (credenciais != null) {
+                credenciaisIniciais.put(perfil, credenciais);
+            }
+        }
+        if (credenciaisIniciais.values().stream().map(LoginRequest::email).distinct().count()
+                != credenciaisIniciais.size()) {
             throw new IllegalStateException("Configure e-mails distintos para os usuários iniciais.");
         }
-        criarSeConfigurado(admin, PerfilUsuario.ADMIN);
-        criarSeConfigurado(operador, PerfilUsuario.OPERADOR);
+        credenciaisIniciais.forEach((perfil, credenciais) -> usuarios.criarSeAusente(
+            credenciais.email(), senhas.encode(credenciais.senha()), perfil.name()));
     }
 
     private LoginRequest obterCredenciais(String prefixo) {
@@ -52,11 +59,5 @@ public class UsuariosIniciais implements ApplicationRunner {
             throw new IllegalStateException("Credenciais iniciais inválidas para " + prefixo + ".");
         }
         return credenciais;
-    }
-
-    private void criarSeConfigurado(LoginRequest credenciais, PerfilUsuario perfil) {
-        if (credenciais != null) {
-            usuarios.criarSeAusente(credenciais.email(), senhas.encode(credenciais.senha()), perfil.name());
-        }
     }
 }

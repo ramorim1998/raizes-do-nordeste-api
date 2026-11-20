@@ -1,5 +1,6 @@
 package br.com.raizesdonordeste.raizes_api.entity;
 
+import br.com.raizesdonordeste.raizes_api.exception.ConflitoException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -37,8 +38,8 @@ public class Pedido {
     private Unidade unidade;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private CanalPedido canal;
+    @Column(name = "canal", nullable = false, length = 20)
+    private CanalPedido canalPedido;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -54,9 +55,9 @@ public class Pedido {
     @OrderBy("id ASC")
     private List<ItemPedido> itens = new ArrayList<>();
 
-    public Pedido(Unidade unidade, CanalPedido canal) {
+    public Pedido(Unidade unidade, CanalPedido canalPedido) {
         this.unidade = unidade;
-        this.canal = canal;
+        this.canalPedido = canalPedido;
     }
 
     public void adicionarItem(ProdutoUnidade produtoUnidade, int quantidade) {
@@ -66,7 +67,30 @@ public class Pedido {
     }
 
     public void registrarPagamento(StatusPagamento statusPagamento) {
+        if (status != StatusPedido.AGUARDANDO_PAGAMENTO) {
+            throw new ConflitoException("O pedido deve estar aguardando pagamento");
+        }
         status = statusPagamento == StatusPagamento.APROVADO
             ? StatusPedido.PAGO : StatusPedido.PAGAMENTO_RECUSADO;
+    }
+
+    public void avancarPara(StatusPedido novoStatus) {
+        boolean transicaoValida = switch (status) {
+            case PAGO -> novoStatus == StatusPedido.EM_PREPARO;
+            case EM_PREPARO -> novoStatus == StatusPedido.PRONTO;
+            case PRONTO -> novoStatus == StatusPedido.ENTREGUE;
+            default -> false;
+        };
+        if (!transicaoValida) {
+            throw new ConflitoException("Não é possível avançar o pedido de " + status + " para " + novoStatus);
+        }
+        status = novoStatus;
+    }
+
+    public void cancelar() {
+        if (status != StatusPedido.AGUARDANDO_PAGAMENTO) {
+            throw new ConflitoException("Somente pedidos aguardando pagamento podem ser cancelados");
+        }
+        status = StatusPedido.CANCELADO;
     }
 }

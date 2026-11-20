@@ -2,7 +2,9 @@ package br.com.raizesdonordeste.raizes_api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -72,7 +74,7 @@ class RaizesApiApplicationTests {
         Catalogo catalogo = prepararCatalogo(admin, operador, 3);
 
         enviar(operador, "/pedidos", """
-            {"unidadeId":%d,"canal":0,"itens":[{"produtoUnidadeId":%d,"quantidade":1}]}
+            {"unidadeId":%d,"canalPedido":0,"itens":[{"produtoUnidadeId":%d,"quantidade":1}]}
             """.formatted(catalogo.unidadeId(), catalogo.produtoUnidadeId()))
             .andExpect(status().isBadRequest());
 
@@ -108,9 +110,84 @@ class RaizesApiApplicationTests {
             .andExpect(jsonPath("$.status").value("PAGAMENTO_RECUSADO"));
         mvc.perform(get("/pedidos/{id}/eventos", recusado).header(HttpHeaders.AUTHORIZATION, admin))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[1].statusNovo").value("PAGAMENTO_RECUSADO"));
+            .andExpect(jsonPath("$.conteudo[1].statusNovo").value("PAGAMENTO_RECUSADO"));
         mvc.perform(get("/pedidos/{id}/eventos", recusado).header(HttpHeaders.AUTHORIZATION, operador))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void percorreCozinhaEntregaECancelamentoComCanalFiltrado() throws Exception {
+        String admin = loginAdmin();
+        String operador = loginOperador();
+        String cozinha = login("cozinha@raizes.test", "senha-de-teste-cozinha", "COZINHA");
+        Catalogo catalogo = prepararCatalogo(admin, operador, 3);
+        long pago = id(criarPedido(operador, catalogo, 1).andExpect(status().isCreated()).andReturn());
+
+        String pagamentos = "/pedidos/" + pago + "/pagamentos";
+        enviar(operador, pagamentos, """
+            {"aprovado":true,"indisponivel":true}
+            """)
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(header().string(HttpHeaders.RETRY_AFTER, "1"))
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        conferirEstoque(operador, catalogo, 3, 1);
+        consultarPedido(operador, pago).andExpect(jsonPath("$.status").value("AGUARDANDO_PAGAMENTO"));
+        enviar(operador, pagamentos, """
+            {"aprovado":true}
+            """).andExpect(status().isCreated());
+
+        mudarStatus(operador, pago, "EM_PREPARO").andExpect(status().isForbidden());
+        mudarStatus(cozinha, pago, "PRONTO").andExpect(status().isConflict());
+        mudarStatus(cozinha, pago, "EM_PREPARO")
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("EM_PREPARO"));
+        mudarStatus(cozinha, pago, "PRONTO").andExpect(status().isOk());
+        mudarStatus(cozinha, pago, "ENTREGUE").andExpect(status().isForbidden());
+        mudarStatus(operador, pago, "ENTREGUE")
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ENTREGUE"));
+
+        long cancelar = id(enviar(operador, "/pedidos", """
+            {"unidadeId":%d,"canalPedido":"APP","itens":[{"produtoUnidadeId":%d,"quantidade":1}]}
+            """.formatted(catalogo.unidadeId(), catalogo.produtoUnidadeId()))
+            .andExpect(status().isCreated()).andReturn());
+        conferirEstoque(operador, catalogo, 2, 1);
+        String cancelamentos = "/pedidos/" + cancelar + "/cancelamentos";
+        enviar(operador, cancelamentos, "").andExpect(status().isNoContent());
+        conferirEstoque(operador, catalogo, 2, 0);
+        consultarPedido(operador, cancelar).andExpect(jsonPath("$.status").value("CANCELADO"));
+        enviar(operador, cancelamentos, "").andExpect(status().isConflict());
+        mvc.perform(get("/pedidos/{id}/eventos", cancelar).header(HttpHeaders.AUTHORIZATION, admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.conteudo[1].statusNovo").value("CANCELADO"))
+            .andExpect(jsonPath("$.conteudo[1].usuarioId").isNumber());
+
+        mvc.perform(get("/pedidos").param("canalPedido", "APP").param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, cozinha))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tamanho").value(1))
+            .andExpect(jsonPath("$.conteudo[0].canalPedido").value("APP"));
+        mvc.perform(get("/pedidos").param("canalPedido", "OUTRO").header(HttpHeaders.AUTHORIZATION, operador))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void movimentaSaldoSemConsumirReservasERespeitaDisponibilidade() throws Exception {
+        String admin = loginAdmin();
+        String operador = loginOperador();
+        Catalogo catalogo = prepararCatalogo(admin, operador, 3);
+        criarPedido(operador, catalogo, 2).andExpect(status().isCreated());
+        String estoque = "/unidades/" + catalogo.unidadeId() + "/estoque/" + catalogo.produtoUnidadeId();
+        enviar(operador, estoque + "/saidas", "{\"quantidade\":2}").andExpect(status().isConflict());
+        enviar(operador, estoque + "/saidas", "{\"quantidade\":1}")
+            .andExpect(status().isOk()).andExpect(jsonPath("$.quantidadeReservada").value(2));
+        mvc.perform(get(estoque + "/movimentacoes").header(HttpHeaders.AUTHORIZATION, operador))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.conteudo[2].tipo").value("SAIDA"));
+
+        Catalogo outroItem = prepararCatalogo(admin, operador, 1);
+        String item = "/unidades/" + outroItem.unidadeId() + "/cardapio/" + outroItem.produtoUnidadeId();
+        mvc.perform(put(item).header(HttpHeaders.AUTHORIZATION, admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"preco\":14.90,\"habilitado\":false}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.habilitado").value(false));
+        criarPedido(operador, outroItem, 1).andExpect(status().isConflict());
     }
 
     @Test
@@ -185,8 +262,13 @@ class RaizesApiApplicationTests {
 
     private ResultActions criarPedido(String token, Catalogo catalogo, int quantidade) throws Exception {
         return enviar(token, "/pedidos", """
-            {"unidadeId":%d,"canal":"TOTEM","itens":[{"produtoUnidadeId":%d,"quantidade":%d}]}
+            {"unidadeId":%d,"canalPedido":"TOTEM","itens":[{"produtoUnidadeId":%d,"quantidade":%d}]}
             """.formatted(catalogo.unidadeId(), catalogo.produtoUnidadeId(), quantidade));
+    }
+
+    private ResultActions mudarStatus(String token, long pedidoId, String status) throws Exception {
+        return mvc.perform(patch("/pedidos/{id}/status", pedidoId).header(HttpHeaders.AUTHORIZATION, token)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + status + "\"}"));
     }
 
     private ResultActions consultarPedido(String token, long id) throws Exception {
@@ -198,9 +280,9 @@ class RaizesApiApplicationTests {
         mvc.perform(get("/unidades/{id}/estoque", catalogo.unidadeId())
                 .header(HttpHeaders.AUTHORIZATION, token))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].quantidadeFisica").value(fisica))
-            .andExpect(jsonPath("$[0].quantidadeReservada").value(reservada))
-            .andExpect(jsonPath("$[0].quantidadeDisponivel").value(fisica - reservada));
+            .andExpect(jsonPath("$.conteudo[0].quantidadeFisica").value(fisica))
+            .andExpect(jsonPath("$.conteudo[0].quantidadeReservada").value(reservada))
+            .andExpect(jsonPath("$.conteudo[0].quantidadeDisponivel").value(fisica - reservada));
     }
 
     private String loginAdmin() throws Exception {

@@ -41,6 +41,10 @@ public class ProdutoUnidade {
     public ProdutoUnidade(Produto produto, Unidade unidade, BigDecimal preco, boolean habilitado) {
         this.produto = produto;
         this.unidade = unidade;
+        atualizar(preco, habilitado);
+    }
+
+    public void atualizar(BigDecimal preco, boolean habilitado) {
         this.preco = preco.setScale(2);
         this.habilitado = habilitado;
     }

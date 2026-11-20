@@ -8,6 +8,7 @@ public record EventoPedidoResponse(
     Long pedidoId,
     StatusPedido statusAnterior,
     StatusPedido statusNovo,
-    Instant registradoEm
+    Instant registradoEm,
+    Long usuarioId
 ) {
 }

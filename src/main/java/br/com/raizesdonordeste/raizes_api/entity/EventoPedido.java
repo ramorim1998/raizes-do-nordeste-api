@@ -41,9 +41,13 @@ public class EventoPedido {
     @Column(name = "registrado_em", nullable = false)
     private Instant registradoEm = Instant.now();
 
-    public EventoPedido(Pedido pedido, StatusPedido statusAnterior) {
+    @Column(name = "usuario_id")
+    private Long usuarioId;
+
+    public EventoPedido(Pedido pedido, StatusPedido statusAnterior, Long usuarioId) {
         this.pedido = pedido;
         this.statusAnterior = statusAnterior;
+        this.usuarioId = usuarioId;
         statusNovo = pedido.getStatus();
     }
 }

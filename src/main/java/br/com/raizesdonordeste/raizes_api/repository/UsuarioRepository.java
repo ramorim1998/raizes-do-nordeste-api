@@ -19,6 +19,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
         VALUES (:email, :senhaHash, :perfil, TRUE)
         ON CONFLICT DO NOTHING
         """, nativeQuery = true)
-    void criarSeAusente(@Param("email") String email, @Param("senhaHash") String senhaHash,
-                        @Param("perfil") String perfil);
+    int criarSeAusente(@Param("email") String email, @Param("senhaHash") String senhaHash,
+                       @Param("perfil") String perfil);
 }

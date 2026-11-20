@@ -39,13 +39,21 @@ public class SegurancaConfig {
                 .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**",
                     "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
-                .requestMatchers(HttpMethod.POST, "/produtos", "/unidades", "/unidades/*/cardapio").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/pedidos/*/eventos").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/produtos", "/unidades", "/unidades/*/cardapio",
+                    "/usuarios").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/unidades/*/cardapio/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/pedidos/*/eventos", "/usuarios", "/usuarios/*",
+                    "/auditorias").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/pedidos", "/pedidos/*")
+                    .hasAnyRole("ADMIN", "OPERADOR", "COZINHA")
+                .requestMatchers(HttpMethod.PATCH, "/pedidos/*/status")
+                    .hasAnyRole("ADMIN", "OPERADOR", "COZINHA")
                 .requestMatchers(HttpMethod.GET, "/produtos", "/produtos/*", "/unidades", "/unidades/*",
                     "/unidades/*/cardapio", "/unidades/*/cardapio/*", "/unidades/*/estoque",
-                    "/pedidos", "/pedidos/*").hasAnyRole("ADMIN", "OPERADOR")
-                .requestMatchers(HttpMethod.POST, "/unidades/*/estoque/*/reposicoes",
-                    "/pedidos", "/pedidos/*/pagamentos").hasAnyRole("ADMIN", "OPERADOR")
+                    "/unidades/*/estoque/*", "/unidades/*/estoque/*/movimentacoes")
+                    .hasAnyRole("ADMIN", "OPERADOR")
+                .requestMatchers(HttpMethod.POST, "/unidades/*/estoque/*/reposicoes", "/unidades/*/estoque/*/saidas",
+                    "/pedidos", "/pedidos/*/pagamentos", "/pedidos/*/cancelamentos").hasAnyRole("ADMIN", "OPERADOR")
                 .anyRequest().denyAll())
             .addFilterBefore(new JwtAuthenticationFilter(jwt, erros), AnonymousAuthenticationFilter.class);
 

@@ -1,5 +1,7 @@
 package br.com.raizesdonordeste.raizes_api.service;
 
+import br.com.raizesdonordeste.raizes_api.dto.PaginaResponse;
+import br.com.raizesdonordeste.raizes_api.dto.ProdutoUnidadeAtualizacaoRequest;
 import br.com.raizesdonordeste.raizes_api.dto.ProdutoUnidadeRequest;
 import br.com.raizesdonordeste.raizes_api.dto.ProdutoUnidadeResponse;
 import br.com.raizesdonordeste.raizes_api.entity.Estoque;
@@ -14,8 +16,8 @@ import br.com.raizesdonordeste.raizes_api.repository.ProdutoUnidadeRepository;
 import br.com.raizesdonordeste.raizes_api.repository.UnidadeRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -50,14 +52,13 @@ public class CardapioService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProdutoUnidadeResponse> listar(Long unidadeId) {
+    public PaginaResponse<ProdutoUnidadeResponse> listar(Long unidadeId, Pageable pagina) {
         if (!unidadeRepository.existsById(unidadeId)) {
             throw new RecursoNaoEncontradoException("Unidade não encontrada com id " + unidadeId);
         }
 
-        return produtoUnidadeRepository.findByUnidadeIdOrderByIdAsc(unidadeId).stream()
-            .map(CardapioService::paraResponse)
-            .toList();
+        return PaginaResponse.de(produtoUnidadeRepository.findByUnidadeIdOrderByIdAsc(unidadeId, pagina)
+            .map(CardapioService::paraResponse));
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +66,17 @@ public class CardapioService {
         return produtoUnidadeRepository.findByIdAndUnidadeId(produtoUnidadeId, unidadeId)
             .map(CardapioService::paraResponse)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Item de cardápio não encontrado com id " + produtoUnidadeId));
+    }
+
+    @Transactional
+    public ProdutoUnidadeResponse atualizar(Long unidadeId, Long produtoUnidadeId,
+                                            @NotNull @Valid ProdutoUnidadeAtualizacaoRequest request) {
+        ProdutoUnidade item = estoqueRepository.buscarParaAtualizar(produtoUnidadeId)
+            .map(Estoque::getProdutoUnidade)
+            .filter(produtoUnidade -> unidadeId.equals(produtoUnidade.getUnidade().getId()))
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Item de cardápio não encontrado com id " + produtoUnidadeId));
+        item.atualizar(request.preco(), request.habilitado());
+        return paraResponse(item);
     }
 
     private static ProdutoUnidadeResponse paraResponse(ProdutoUnidade item) {
