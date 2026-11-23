@@ -15,7 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
-@Configuration(proxyBeanMethods = false)
+@Configuration
 public class SegurancaConfig {
 
     @Bean

@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration(proxyBeanMethods = false)
+@Configuration
 @OpenAPIDefinition(
     info = @Info(title = "Raízes do Nordeste API", version = "1.0",
         description = "Catálogo, estoque por unidade e pedidos com pagamento simulado."),

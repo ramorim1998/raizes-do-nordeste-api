@@ -28,14 +28,14 @@ public class RespostasSeguranca implements AuthenticationEntryPoint, AccessDenie
                          AuthenticationException exception) throws IOException {
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         escrever(response, HttpStatus.UNAUTHORIZED, "Autenticação necessária",
-            "Informe um token de acesso válido.");
+            "informe um token válido");
     }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException exception) throws IOException {
         escrever(response, HttpStatus.FORBIDDEN, "Acesso negado",
-            "O seu perfil não pode executar esta operação.");
+            "acesso negado pelo perfil");
     }
 
     private void escrever(HttpServletResponse response, HttpStatus status, String titulo,

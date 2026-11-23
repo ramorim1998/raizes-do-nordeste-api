@@ -23,19 +23,20 @@ public class AuthService {
         this.usuarios = usuarios;
         this.senhas = senhas;
         this.jwt = jwt;
+        // Executa BCrypt mesmo quando o e-mail não existe para aproximar o custo do login.
         this.hashParaContaInexistente = senhas.encode(UUID.randomUUID().toString());
     }
 
     public LoginResponse autenticar(LoginRequest request) {
         if (request.senha().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BadCredentialsException("Credenciais inválidas.");
+            throw new BadCredentialsException("credenciais inválidas");
         }
 
         Usuario usuario = usuarios.findByEmail(Usuario.normalizarEmail(request.email())).orElse(null);
         String hash = usuario == null ? hashParaContaInexistente : usuario.getSenhaHash();
         boolean senhaValida = senhas.matches(request.senha(), hash);
         if (!senhaValida || usuario == null || !usuario.isAtivo()) {
-            throw new BadCredentialsException("Credenciais inválidas.");
+            throw new BadCredentialsException("credenciais inválidas");
         }
         return new LoginResponse(jwt.emitir(usuario.getId(), usuario.getPerfil()), "Bearer",
             jwt.validadeEmSegundos(), usuario.getPerfil());

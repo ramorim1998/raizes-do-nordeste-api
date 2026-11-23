@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 
 public record UsuarioRequest(
     @NotBlank @Email @Size(max = 254) String email,
+    // A resposta usa UsuarioResponse, que omite a senha.
     @Schema(accessMode = Schema.AccessMode.WRITE_ONLY, format = "password")
     @NotBlank @Size(min = 12, max = 72) String senha,
     @NotNull PerfilUsuario perfil
@@ -24,6 +25,6 @@ public record UsuarioRequest(
 
     @Override
     public String toString() {
-        return "UsuarioRequest[credenciais protegidas]";
+        return "UsuarioRequest[senha=***]";
     }
 }

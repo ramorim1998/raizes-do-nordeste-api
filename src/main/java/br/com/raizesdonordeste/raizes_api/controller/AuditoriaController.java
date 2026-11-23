@@ -25,7 +25,7 @@ public class AuditoriaController {
 
     @GetMapping
     @Operation(summary = "Consultar auditoria de usuários",
-        description = "Requer ADMIN. Os registros contêm ações, identificadores e data/hora.")
+        description = "Apenas ADMIN")
     public ResponseEntity<PaginaResponse<AuditoriaResponse>> listar(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {

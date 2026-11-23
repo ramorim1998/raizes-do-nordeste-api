@@ -49,6 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             var autenticacao = UsernamePasswordAuthenticationToken.authenticated(
                 Long.toString(identidade.usuarioId()), null, List.of(autoridade)
             );
+            // Um contexto novo evita alterar uma instância que possa estar compartilhada.
             var contexto = SecurityContextHolder.createEmptyContext();
             contexto.setAuthentication(autenticacao);
             SecurityContextHolder.setContext(contexto);

@@ -458,7 +458,7 @@ def pretextuais(args, estilos_):
             "A implementação usa Java, Spring Boot e PostgreSQL. O fluxo reserva estoque em "
             "transação, simula resultados de pagamento e registra mudanças de estado e "
             "movimentações. A autenticação usa JWT e a autorização restringe as operações por "
-            "perfil. A avaliação aprovou 23 testes JUnit e 48 cenários HTTP em PostgreSQL 16. "
+            "perfil. A suíte mais recente passou com 26 testes JUnit em H2. A coleção passou com 48 cenários HTTP em PostgreSQL 16. "
             "A proposta de fidelidade define crédito, resgate e campanhas com adesão facultativa. "
             "O pagamento permanece simulado, e a implantação em produção exige validar controles "
             "operacionais e de proteção de dados.", estilos_["reference"],
@@ -474,7 +474,7 @@ def pretextuais(args, estilos_):
             "tracks orders. The implementation uses Java, Spring Boot, and PostgreSQL. The "
             "workflow reserves stock in a transaction, simulates payment results, and records "
             "status changes and stock movements. Authentication uses JWT, and authorization "
-            "applies role-based rules. The evaluation passed 23 JUnit tests and 48 HTTP "
+            "applies role-based rules. The latest suite passed 26 JUnit tests on H2. The collection passed 48 HTTP "
             "scenarios against PostgreSQL 16. The proposed loyalty program specifies earning, redemption, "
             "and campaigns with voluntary participation. Payment remains simulated, and a "
             "production deployment requires operational and privacy review.", estilos_["reference"],

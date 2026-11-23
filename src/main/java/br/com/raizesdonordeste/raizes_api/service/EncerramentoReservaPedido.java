@@ -23,7 +23,7 @@ class EncerramentoReservaPedido {
     private final EstoqueRepository estoqueRepository;
     private final MovimentacaoEstoqueRepository movimentacaoRepository;
 
-    @Transactional(propagation = Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.MANDATORY) // exige que o chamador abra transação
     void encerrar(Pedido pedido, boolean baixarEstoque) {
         TipoMovimentacaoEstoque tipo = baixarEstoque ? TipoMovimentacaoEstoque.BAIXA : TipoMovimentacaoEstoque.LIBERACAO;
         List<ItemPedido> itens = pedido.getItens().stream()

@@ -70,7 +70,7 @@ public class PedidoController {
 
     @PatchMapping("/{id}/status")
     @Operation(summary = "Avança a etapa operacional do pedido",
-        description = "COZINHA inicia o preparo e marca pronto, OPERADOR confirma a entrega e ADMIN pode executar as três etapas.")
+        description = "COZINHA inicia o preparo e marca como pronto. OPERADOR confirma a entrega. ADMIN faz as três etapas.")
     public PedidoResponse atualizarStatus(@PathVariable Long id, @Valid @RequestBody AtualizarStatusPedidoRequest request,
                                           Authentication autenticacao) {
         String perfilEtapa = request.status() == Etapa.ENTREGUE ? "ROLE_OPERADOR" : "ROLE_COZINHA";

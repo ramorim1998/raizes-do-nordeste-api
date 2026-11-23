@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public record ProdutoUnidadeRequest(
     @NotNull @Positive Long produtoId,
     @NotNull @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal preco,
+    // Quando omitido ou nulo, o item fica habilitado.
     Boolean habilitado
 ) {
 }

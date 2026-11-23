@@ -29,7 +29,7 @@ public class UsuarioService {
         String email = Usuario.normalizarEmail(request.email());
         String hash = senhas.encode(request.senha());
         if (usuarios.criarSeAusente(email, hash, request.perfil().name()) == 0) {
-            throw new ConflitoException("Já existe um usuário com este e-mail.");
+            throw new ConflitoException("email já cadastrado");
         }
         Usuario usuario = usuarios.findByEmail(email).orElseThrow();
         auditorias.save(new Auditoria(AcaoAuditoria.CRIACAO_USUARIO, responsavelId, usuario.getId()));
@@ -39,7 +39,7 @@ public class UsuarioService {
     @Transactional
     public UsuarioResponse consultar(long id, long responsavelId) {
         Usuario usuario = usuarios.findById(id)
-            .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+            .orElseThrow(() -> new RecursoNaoEncontradoException("usuário " + id + " não encontrado"));
         auditorias.save(new Auditoria(AcaoAuditoria.CONSULTA_USUARIO, responsavelId, usuario.getId()));
         return resposta(usuario);
     }

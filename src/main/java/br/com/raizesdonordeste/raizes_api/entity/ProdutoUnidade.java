@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,6 +20,8 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProdutoUnidade {
+
+    private static final BigDecimal PRECO_MAXIMO = new BigDecimal("9999999999.99");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,7 +48,18 @@ public class ProdutoUnidade {
     }
 
     public void atualizar(BigDecimal preco, boolean habilitado) {
-        this.preco = preco.setScale(2);
+        this.preco = validarPreco(preco);
         this.habilitado = habilitado;
+    }
+
+    private static BigDecimal validarPreco(BigDecimal preco) {
+        if (preco == null || preco.signum() < 0 || preco.compareTo(PRECO_MAXIMO) > 0) {
+            throw new IllegalArgumentException("O preço deve estar entre 0 e 9.999.999.999,99");
+        }
+        try {
+            return preco.setScale(2, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException erro) {
+            throw new IllegalArgumentException("O preço deve ser um valor exato em centavos", erro);
+        }
     }
 }

@@ -40,7 +40,7 @@ public class UsuariosIniciais implements ApplicationRunner {
         }
         if (credenciaisIniciais.values().stream().map(LoginRequest::email).distinct().count()
                 != credenciaisIniciais.size()) {
-            throw new IllegalStateException("Configure e-mails distintos para os usuários iniciais.");
+            throw new IllegalStateException("emails iniciais duplicados");
         }
         credenciaisIniciais.forEach((perfil, credenciais) -> usuarios.criarSeAusente(
             credenciais.email(), senhas.encode(credenciais.senha()), perfil.name()));
@@ -56,7 +56,7 @@ public class UsuariosIniciais implements ApplicationRunner {
         LoginRequest credenciais = new LoginRequest(Usuario.normalizarEmail(email), senha);
         if (!validator.validate(credenciais).isEmpty() || senha.length() < 12
                 || senha.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new IllegalStateException("Credenciais iniciais inválidas para " + prefixo + ".");
+            throw new IllegalStateException("credenciais inválidas: " + prefixo);
         }
         return credenciais;
     }

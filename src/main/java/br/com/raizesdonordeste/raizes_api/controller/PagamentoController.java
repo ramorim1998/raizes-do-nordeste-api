@@ -24,8 +24,7 @@ public class PagamentoController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Solicita pagamento ao gateway simulado",
-        description = "Em indisponibilidade simulada, a reserva continua ativa para uma nova tentativa.")
+    @Operation(summary = "Solicita pagamento ao gateway simulado")
     public PagamentoResponse simular(@PathVariable Long pedidoId, @Valid @RequestBody PagamentoRequest request,
                                      Authentication autenticacao) {
         return pagamentoService.simular(pedidoId, request, Long.valueOf(autenticacao.getName()));

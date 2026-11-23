@@ -29,7 +29,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail tratarAcessoNegado(AccessDeniedException exception) {
-        return problema(HttpStatus.FORBIDDEN, "Acesso negado", "O seu perfil não pode executar esta operação.");
+        return problema(HttpStatus.FORBIDDEN, "Acesso negado", "perfil sem permissão para esta ação");
     }
 
     @ExceptionHandler(GatewayPagamentoIndisponivelException.class)
@@ -59,7 +59,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static ProblemDetail erroValidacao(List<ErroCampo> erros) {
         ProblemDetail problema = problema(HttpStatus.BAD_REQUEST, "Dados inválidos",
-            "Corrija os campos indicados e tente novamente.");
+            "corrija os campos indicados");
         problema.setProperty("erros", erros);
         return problema;
     }

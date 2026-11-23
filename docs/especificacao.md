@@ -2,11 +2,11 @@
 
 ## 1 INTRODUÇÃO E ANÁLISE DO PROBLEMA
 
-A Raízes do Nordeste precisa operar restaurantes com preços, cardápios e saldos próprios, recebendo pedidos em cinco canais. Um cadastro global de produtos evita duplicidade. A associação com cada unidade registra o preço e a disponibilidade locais. Vendas simultâneas e falhas no pagamento exigem uma regra comum para preservar o estoque e explicar a situação de cada pedido.
+Cada filial da Raízes do Nordeste tem preços, cardápio e estoque próprios. O cadastro de produtos é comum à rede. Quando dois canais vendem o mesmo item, a API precisa impedir que ambos reservem a última unidade.
 
-O objetivo geral é implementar uma API REST que receba uma venda multicanal, reserve o saldo da unidade, simule o processamento financeiro e acompanhe as etapas até a entrega. Os objetivos específicos são proteger as operações por perfil, persistir resultados e trilhas de auditoria, divulgar o contrato HTTP e verificar as condições de sucesso e de erro.
+O fluxo A do roteiro cobre a criação do pedido, a reserva de estoque, o pagamento simulado e o acompanhamento até a entrega. A API registra o canal de origem e restringe as operações por perfil.
 
-O MVP segue o fluxo A do roteiro, pedido, pagamento simulado e atualização de status. Catálogo, estoque, controle de acesso e auditoria sustentam esse fluxo. Fidelidade e campanhas recebem tratamento conceitual na seção 8. Os canais são origens declaradas no pedido. O cliente usa um canal atendido pela rede, enquanto esta API recebe a operação sob uma conta autorizada.
+O escopo inclui catálogo, estoque, segurança e auditoria. Fidelidade e campanhas são propostas conceituais apresentadas na seção 8.
 
 ## 2 REQUISITOS E PRIORIZAÇÃO
 
@@ -38,9 +38,9 @@ O MVP segue o fluxo A do roteiro, pedido, pagamento simulado e atualização de 
 
 ### 3.1 Arquitetura em camadas e atores
 
-Os controllers definem rotas e status e recebem DTOs validados. Os serviços aplicam regras de negócio e delimitam transações. Repositórios Spring Data JPA executam consultas e bloqueios. O domínio concentra estados e regras de mudança. PostgreSQL mantém chaves, unicidade e checks. A cadeia Spring Security autentica Bearer JWT e autoriza perfis. O advice padroniza falhas de negócio, enquanto a cadeia de segurança produz 401 e 403 no mesmo formato de erro.
+Os controllers recebem os DTOs e definem as respostas HTTP. Os services aplicam as regras de negócio e controlam as transações. Os repositories consultam e bloqueiam registros no PostgreSQL, que também aplica chaves e restrições. O Spring Security valida o JWT e os perfis. O tratamento de exceções e a cadeia de segurança devolvem erros no formato ProblemDetail.
 
-O cliente origina o pedido pelos canais APP, TOTEM, BALCAO, PICKUP e WEB. O atendente corresponde a OPERADOR. A cozinha acompanha a fila e registra etapas de preparo. O gerente corresponde a ADMIN, com gestão de catálogo, usuários e auditoria. O gateway é um colaborador simulado pelo sistema, representado como participante externo no modelo lógico. As permissões de cada ator estão detalhadas na matriz de segurança.
+O cliente escolhe um dos canais previstos: APP, TOTEM, BALCAO, PICKUP ou WEB. Uma conta autorizada registra a venda. A cozinha opera a fila, o gerente administra o sistema e o gateway simulado fornece o resultado do pagamento. A matriz da seção 6 detalha as permissões.
 
 ```mermaid
 flowchart LR
@@ -162,7 +162,7 @@ erDiagram
     }
 ```
 
-Os IDs são chaves primárias. ProdutoUnidade tem chave única composta por produto e unidade. Estoque tem um vínculo único por item de cardápio e mantém `0 ≤ reservado ≤ físico`. Cada ItemPedido identifica um produto da unidade, com quantidade positiva e preço congelado. Um pagamento finalizado por pedido é assegurado por unicidade. Reposição e saída manual têm vínculo opcional com pedido. EventoPedido guarda a mudança de estado, horário e responsável. Auditoria registra o ator e, quando aplicável, a conta alvo. As referências opcionais ao usuário permitem preservar os eventos se uma conta for removida.
+O vínculo ProdutoUnidade é único por par produto e unidade. Cada vínculo tem um estoque com `0 ≤ reservado ≤ físico`. O item do pedido guarda quantidade positiva e o preço da venda. O banco permite um pagamento por pedido. Reposição e saída manual são registradas sem vincular um pedido. Os eventos de pedido guardam estado, horário e responsável. A auditoria registra o ator e, quando aplicável, a conta-alvo. Referências opcionais a usuários preservam o histórico em caso de exclusão da conta.
 
 ### 3.3 Diagrama de classes
 
@@ -194,7 +194,7 @@ classDiagram
 
 **Pré-condições.** Sessão autorizada, unidade ativa, produtos globais ativos, vínculos habilitados na mesma filial, quantidades válidas e saldo disponível. O pagamento exige pedido aguardando pagamento.
 
-**Fluxo principal.** 1. Receber `unidadeId`, `canalPedido` e itens. 2. Carregar vínculos e bloquear linhas de estoque em ordem crescente de identificador. 3. Verificar saldo, guardar preço vigente, calcular total e reservar quantidades. 4. Persistir pedido em AGUARDANDO_PAGAMENTO, evento inicial e movimentações. 5. Receber a simulação, bloquear o pedido e verificar seu estado. 6. Se aprovado, baixar físico e reservado, gravar pagamento e marcar PAGO. 7. Registrar as etapas operacionais permitidas até ENTREGUE.
+**Fluxo principal.** 1. Receber unidade, canal e itens. 2. Bloquear o estoque e conferir disponibilidade. 3. Guardar os preços, calcular o total e reservar as quantidades. 4. Gravar o pedido em AGUARDANDO_PAGAMENTO com o evento inicial e os movimentos. 5. Bloquear o pedido para simular o pagamento. 6. Se aprovado, baixar o estoque físico e reservado, gravar o pagamento e marcar PAGO. 7. Registrar as etapas até ENTREGUE.
 
 **Pós-condições.** Aprovação grava um pagamento, diminui físico e reservado e gera eventos. Recusa grava o resultado, libera a reserva sem reduzir o físico e marca PAGAMENTO_RECUSADO. Cancelamento de pedido pendente também libera a reserva e registra CANCELADO. Após PAGO, as etapas seguem EM_PREPARO, PRONTO e ENTREGUE, nessa ordem. COZINHA opera preparo e prontidão. OPERADOR registra a entrega. ADMIN executa as três etapas.
 
@@ -236,9 +236,9 @@ sequenceDiagram
 
 ## 5 IMPLEMENTAÇÃO, PERSISTÊNCIA E CONTRATOS
 
-Java 21, Maven e Spring Boot 4.1.2 compõem a aplicação. PostgreSQL 16 armazena catálogo, estoque, vendas e usuários. Flyway aplica migrations incrementais, preservando o catálogo da V1. A V2 introduz vendas, movimentos e eventos, a V3 cria usuários e a V4 incorpora etapas operacionais e autoria dos eventos. A V5 amplia os perfis e inclui auditoria de acessos a contas. A V6 habilita saídas manuais na trilha de estoque.
+A API usa Java 21, Maven, Spring Boot 4.1.2 e PostgreSQL 16. O Flyway aplica as migrations em ordem. A V1 define o catálogo, a V2 inclui pedidos, pagamentos, movimentos e eventos, e a V3 cria as contas. A V4 acrescenta etapas operacionais e autoria dos eventos, a V5 amplia os perfis e registra auditorias, e a V6 cobre saídas manuais.
 
-A reserva consulta o saldo já bloqueado. Se outra transação confirmar antes, a próxima verifica o saldo atualizado. Em pedidos com vários itens, a ordenação dos bloqueios reduz risco de deadlock. O pagamento bloqueia a linha do pedido antes de mover o estoque. Criação, resultado e cancelamento usam transações para preservar consistência. O mock é local e mantém a transação curta. Uma integração real exige timeout, chave de idempotência e reconciliação de resultados.
+O pedido só confere o saldo depois de bloquear as linhas de estoque. Ao disputar a última unidade, a segunda transação lê o saldo atualizado após a primeira. Pedidos com vários itens bloqueiam as linhas em ordem de identificador para reduzir deadlocks. No pagamento, o service bloqueia o pedido antes do estoque. Cada operação confirma suas alterações em conjunto. Um provedor real exigiria limite de espera, chave de idempotência e reconciliação.
 
 | Operações | Entrada ou consulta | Resposta principal |
 | --- | --- | --- |
@@ -258,7 +258,7 @@ A reserva consulta o saldo já bloqueado. Se outra transação confirmar antes, 
 | POST /pedidos/{id}/cancelamentos | Identificação do pedido pendente, sem corpo | 204 |
 | GET /pedidos/{id}/eventos; GET /auditorias | Consultas administrativas de rastreabilidade | 200 |
 
-O pedido guarda `canalPedido` como enum do domínio e aceita APP, TOTEM, BALCAO, PICKUP e WEB. Para filtrar, use `GET /pedidos?canalPedido=TOTEM&page=0&size=20`. As listagens paginadas retornam conteúdo, página, tamanho e totais. O OpenAPI é publicado em `/v3/api-docs` com interface em `/swagger-ui.html`. O HTTP 400 indica contrato inválido, 401 credencial ausente ou inválida, 403 acesso fora do perfil, 404 recurso ausente, 409 conflito de estoque ou estado e 503 falha temporária da simulação.
+Para filtrar por canal, use `GET /pedidos?canalPedido=TOTEM&page=0&size=20`. As páginas incluem itens, posição, tamanho e totais. O OpenAPI está em `/v3/api-docs` e o Swagger em `/swagger-ui.html`. A matriz da seção 7 mostra exemplos de respostas de erro.
 
 ```json
 {
@@ -280,7 +280,7 @@ O pedido guarda `canalPedido` como enum do domínio e aceita APP, TOTEM, BALCAO,
 | ADMIN | Gerencia produtos, unidades, cardápio e usuários, opera o fluxo e consulta auditorias. |
 | Gateway simulado | Produz decisão controlada de aprovação, recusa ou indisponibilidade. |
 
-Credenciais em produção devem trafegar por HTTPS. A aplicação guarda hash BCrypt e emite JWT com validade curta, assinatura, emissor e audiência verificados. O segredo vem do ambiente e o token usa um identificador interno como assunto. Senhas, hashes e tokens inteiros não integram a trilha de auditoria. Uma conta de gestão inicia o cadastro de perfis, com credenciais provisionadas sem exposição no repositório.
+Em produção, o login deve usar HTTPS. A API guarda hashes BCrypt e emite JWT de curta duração com o ID interno da conta. Ela valida assinatura, validade, emissor e audiência. O segredo e as credenciais iniciais vêm do ambiente. A auditoria omite senhas, hashes e tokens.
 
 ### 6.2 Tratamento e ciclo de vida de dados
 
@@ -298,7 +298,7 @@ Os prazos da tabela são uma proposta de governança, sujeita a revisão pelo co
 
 ## 7 PLANO DE TESTES E EVIDÊNCIAS
 
-A coleção em `docs/raizes-api.postman_collection.json` usa variáveis para tokens e IDs. Execute a ordem de preparação, autenticação, cadastro, estoque, pedido e pagamento em um banco de testes. Os códigos C abaixo identificam a matriz de cobertura do relatório. A execução usa os identificadores T01 a T48 da coleção.
+A coleção `docs/raizes-api.postman_collection.json` guarda tokens e IDs em variáveis. Execute as pastas em ordem, em um banco de testes. A matriz abaixo usa os códigos C01 a C18. A coleção usa T01 a T48.
 
 | ID | Endpoint e pré-condição | Entrada | Resultado esperado |
 | --- | --- | --- | --- |
@@ -321,9 +321,9 @@ A coleção em `docs/raizes-api.postman_collection.json` usa variáveis para tok
 | C17 | GET /pedidos; pedidos de canais diferentes | canalPedido=TOTEM, page=0 | 200 com a página filtrada |
 | C18 | POST /unidades/{id}/estoque/{vinculo}/saidas; saldo livre | Quantidade positiva disponível | 200 com baixa e movimento SAIDA |
 
-**Execução verificada.** O Maven Wrapper concluiu o empacotamento e passou os 23 testes JUnit. O Newman executou 48 cenários HTTP, sendo 31 positivos e 17 negativos, com 116 asserções aprovadas em PostgreSQL 16.12 temporário. A execução usou o JAR empacotado e aplicou as migrations V1 a V6.
+**Execuções verificadas.** Em 19/11/2026, o Maven Wrapper empacotou o JAR e aprovou 23 testes JUnit. O Newman executou 48 cenários HTTP (31 positivos e 17 negativos) com 116 asserções aprovadas em PostgreSQL 16.12. Em 21/11/2026, a suíte Maven passou com 26 testes em H2 no modo PostgreSQL.
 
-**Verificações adicionais.** A disputa pela última unidade e a disputa pelo pagamento de um mesmo pedido produziram, cada uma, um HTTP 201 e um 409. No pagamento aprovado, as quantidades física e reservada ficaram em zero no cenário de uma unidade. O Swagger UI e o JSON OpenAPI responderam por HTTP. Os retornos de T01 a T48 e a reprodução constam em `docs/evidencias-testes.md`. Os contratos detalhados estão em `docs/contratos-api.md`.
+**Concorrência e contrato.** A disputa pela última unidade e a disputa pelo pagamento de um pedido devolveram, cada uma, um HTTP 201 e um 409. O pagamento aprovado baixou o físico e o reservado a zero no cenário de uma unidade. O Swagger UI e o OpenAPI responderam por HTTP. Os resultados de T01 a T48 e os passos de reprodução estão em `docs/evidencias-testes.md`. Os exemplos por rota estão em `docs/contratos-api.md`.
 
 ## 8 FIDELIDADE E CAMPANHAS PROPOSTAS
 
@@ -337,9 +337,9 @@ O aceite de fidelidade registra identificador da pessoa, finalidade, versão do 
 
 ## 9 CONCLUSÃO
 
-O desenho trata o pedido como uma operação conjunta de cardápio, estoque, pagamento e trilha de mudanças. A persistência de preço e a reserva transacional preservam a consistência quando os canais compartilham o mesmo estoque. O contrato HTTP e a coleção permitem reproduzir os principais resultados e distinguir falhas de entrada, autorização, negócio e integração.
+O pedido grava o preço da filial e reserva estoque na mesma transação. A disputa pela última unidade aceita uma única reserva. Se o pagamento simulado ficar indisponível, a API devolve 503, mantém a reserva e permite nova tentativa. Os eventos e as movimentações mostram o efeito de cada operação.
 
-A integração financeira continua simulada. Alta disponibilidade, limites de tráfego, monitoramento contínuo, um provedor real e fidelidade permanecem como evoluções. Retenção e bases de tratamento devem ser validadas pela organização antes de implantação real. O projeto acadêmico foi preparado para entrega local. A publicação do repositório e o envio pelo ambiente acadêmico ficam pendentes de decisão do autor.
+A implantação real ainda exige um provedor de pagamento, monitoramento, limites de tráfego e avaliação de disponibilidade. A organização também precisa validar retenção e bases de tratamento. O programa de fidelidade permanece como proposta.
 
 ## REFERÊNCIAS
 

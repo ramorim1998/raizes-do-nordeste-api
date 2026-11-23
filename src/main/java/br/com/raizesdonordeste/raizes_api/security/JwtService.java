@@ -45,20 +45,21 @@ public class JwtService {
     JwtService(String segredo, long validadeEmSegundos, Clock relogio) {
         byte[] chave = decodificarChave(segredo);
         if (validadeEmSegundos < 60 || validadeEmSegundos > 3600) {
-            throw new IllegalArgumentException("RAIZES_JWT_TTL_SECONDS deve ficar entre 60 e 3600.");
+            throw new IllegalArgumentException("RAIZES_JWT_TTL_SECONDS fora de [60,3600]");
         }
 
         try {
             this.assinador = new MACSigner(chave);
             this.verificador = new MACVerifier(chave);
         } catch (JOSEException exception) {
-            throw new IllegalStateException("Falha na configuração da assinatura JWT.", exception);
+            throw new IllegalStateException("falha ao configurar JWT", exception);
         }
         this.validadeEmSegundos = validadeEmSegundos;
         this.relogio = relogio;
     }
 
     public String emitir(Long usuarioId, PerfilUsuario perfil) {
+        // Mantém iat, nbf e exp na precisão usada para serializar o token.
         Instant agora = relogio.instant().truncatedTo(ChronoUnit.SECONDS);
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
             .issuer(EMISSOR)
@@ -76,7 +77,7 @@ public class JwtService {
             jwt.sign(assinador);
             return jwt.serialize();
         } catch (JOSEException exception) {
-            throw new IllegalStateException("Falha ao emitir o token de acesso.", exception);
+            throw new IllegalStateException("falha ao emitir JWT", exception);
         }
     }
 
@@ -128,16 +129,16 @@ public class JwtService {
         try {
             chave = Base64.getDecoder().decode(segredo);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("RAIZES_JWT_SECRET deve ser codificado em Base64.");
+            throw new IllegalArgumentException("RAIZES_JWT_SECRET não é Base64");
         }
         if (chave.length < 32) {
-            throw new IllegalArgumentException("RAIZES_JWT_SECRET deve conter pelo menos 32 bytes aleatórios em Base64.");
+            throw new IllegalArgumentException("RAIZES_JWT_SECRET precisa de 32+ bytes");
         }
         return chave;
     }
 
     private static BadCredentialsException tokenInvalido() {
-        return new BadCredentialsException("Token de acesso inválido.");
+        return new BadCredentialsException("token inválido");
     }
 
     record Identidade(long usuarioId, PerfilUsuario perfil) {

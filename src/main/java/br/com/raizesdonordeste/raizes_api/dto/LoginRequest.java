@@ -10,6 +10,6 @@ public record LoginRequest(
 ) {
     @Override
     public String toString() {
-        return "LoginRequest[credenciais protegidas]";
+        return "LoginRequest[email=***, senha=***]";
     }
 }

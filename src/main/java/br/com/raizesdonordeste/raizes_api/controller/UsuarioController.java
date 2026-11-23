@@ -35,7 +35,7 @@ public class UsuarioController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Cadastrar usuário", description = "Requer ADMIN. Registra a ação em auditoria.")
+    @Operation(summary = "Cadastrar usuário")
     public ResponseEntity<UsuarioResponse> criar(@Valid @RequestBody UsuarioRequest request, Principal principal) {
         UsuarioResponse usuario = usuarios.criar(request, responsavel(principal));
         URI location = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
@@ -44,14 +44,14 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar usuário", description = "Requer ADMIN. Registra o acesso ao cadastro.")
+    @Operation(summary = "Consultar usuário")
     public ResponseEntity<UsuarioResponse> consultar(@PathVariable long id, Principal principal) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
             .body(usuarios.consultar(id, responsavel(principal)));
     }
 
     @GetMapping
-    @Operation(summary = "Listar usuários", description = "Requer ADMIN. Registra a listagem em auditoria.")
+    @Operation(summary = "Listar usuários")
     public ResponseEntity<PaginaResponse<UsuarioResponse>> listar(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
