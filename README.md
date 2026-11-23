@@ -24,9 +24,13 @@ createdb --host=localhost --port=5433 --username=postgres --owner=raizes_app rai
 3. Preencha `RAIZES_ADMIN_EMAIL` e `RAIZES_ADMIN_PASSWORD` para criar a conta administrativa inicial. As contas de `OPERADOR` e `COZINHA` são opcionais. Para criar a primeira, preencha `RAIZES_OPERADOR_EMAIL` e `RAIZES_OPERADOR_PASSWORD`. Para criar a segunda, preencha `RAIZES_COZINHA_EMAIL` e `RAIZES_COZINHA_PASSWORD`. Use e-mails distintos e senhas com pelo menos 12 caracteres e no máximo 72 bytes em UTF-8. A inicialização preserva as credenciais das contas existentes. O administrador também pode criar contas pela API.
 4. Inicie a classe `RaizesApiApplication` na IDE, com a raiz do projeto como diretório de trabalho, ou execute o Maven Wrapper nessa pasta. O Spring Boot carrega o `.env` como arquivo de propriedades. Use uma entrada `CHAVE=valor` por linha, sem aspas. As variáveis de ambiente já definidas têm prioridade.
 
+No Windows:
+
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
+
+No Linux/macOS:
 
 ```bash
 ./mvnw spring-boot:run
@@ -47,13 +51,31 @@ Para gerar o JAR executável, rode `.\mvnw.cmd package`. Em seguida, a partir da
 
 ## API e acesso
 
-A API está disponível em `http://localhost:8080`. No Swagger UI, execute `POST /auth/login` com as credenciais. Em seguida, clique em **Authorize** e cole o valor do campo `token`. Em outros clientes, envie `Authorization: Bearer <token>`. O token tem validade padrão de 900 segundos, ajustável por `RAIZES_JWT_TTL_SECONDS`. [Swagger UI](http://localhost:8080/swagger-ui.html) · [OpenAPI em JSON](http://localhost:8080/v3/api-docs) · [OpenAPI em YAML](http://localhost:8080/v3/api-docs.yaml)
+A API está disponível em `http://localhost:8080`.
+
+No Swagger UI, execute `POST /auth/login` com as credenciais. Em seguida, clique em **Authorize** e cole o valor do campo `token`. Em outros clientes, envie `Authorization: Bearer <token>`.
+
+O token tem validade padrão de 900 segundos, ajustável por `RAIZES_JWT_TTL_SECONDS`.
+
+- [Swagger UI](http://localhost:8080/swagger-ui.html)
+- [OpenAPI em JSON](http://localhost:8080/v3/api-docs)
+- [OpenAPI em YAML](http://localhost:8080/v3/api-docs.yaml)
+
+Esses endereços são locais. Para acessá-los, é necessário iniciar a aplicação conforme as instruções anteriores.
+
+### Perfis e permissões
 
 - `ADMIN` gerencia contas, consulta auditorias e executa todas as operações de catálogo, estoque e pedidos.
 - `OPERADOR` consulta o catálogo, movimenta o estoque, cria pedidos, cancela pedidos que aguardam pagamento, solicita pagamentos e confirma entregas.
 - `COZINHA` consulta pedidos, inicia o preparo e marca pedidos como prontos.
 
-As listagens aceitam `page` a partir de zero e `size` entre 1 e 100. Os valores padrão são `page=0` e `size=20`. A resposta inclui `conteudo`, `pagina`, `tamanho`, `totalElementos` e `totalPaginas`. Para filtrar pelo canal de origem, use `GET /pedidos?canalPedido=TOTEM&page=0&size=20`. Os exemplos por rota, os códigos de erro e as permissões estão na [referência dos contratos da API](docs/contratos-api.md).
+As listagens aceitam `page` a partir de zero e `size` entre 1 e 100. Os valores padrão são `page=0` e `size=20`. A resposta inclui `conteudo`, `pagina`, `tamanho`, `totalElementos` e `totalPaginas`.
+
+Para filtrar pelo canal de origem, use:
+
+`GET /pedidos?canalPedido=TOTEM&page=0&size=20`
+
+Os exemplos por rota, códigos de erro e permissões estão na [referência dos contratos da API](docs/contratos-api.md).
 
 ## Fluxo de demonstração
 
@@ -63,18 +85,61 @@ As listagens aceitam `page` a partir de zero e `size` entre 1 e 100. Os valores 
 4. Após o pagamento, `COZINHA` altera o status para `EM_PREPARO` e, depois, para `PRONTO`. `OPERADOR` confirma a entrega, mudando o status para `ENTREGUE`. O cancelamento é permitido apenas enquanto o pedido aguarda pagamento. A operação libera as reservas.
 5. Como `ADMIN`, consulte os eventos do pedido e a auditoria de usuários. Consulte também o saldo e as movimentações da unidade.
 
-As respostas de erro usam o tipo de mídia `application/problem+json`. A API retorna `400` para entrada inválida, `401` para autenticação ausente ou inválida, `403` para acesso sem permissão, `404` para recurso ausente, `409` para conflito e `503` para indisponibilidade simulada do pagamento.
+As respostas de erro usam o tipo de mídia `application/problem+json`. A API retorna:
+
+| Código | Situação |
+| --- | --- |
+| 400 | Entrada inválida |
+| 401 | Autenticação ausente ou inválida |
+| 403 | Acesso sem permissão |
+| 404 | Recurso inexistente |
+| 409 | Conflito com regra de negócio |
+| 503 | Indisponibilidade simulada do pagamento |
 
 ## Testes e documentação
 
-Execute `./mvnw test` ou `.\mvnw.cmd test`. Por padrão, a suíte usa o H2 em modo PostgreSQL e aplica as migrations. Para executar os testes com PostgreSQL, use um **banco de testes vazio** e configure `RAIZES_TEST_DB_URL`, `RAIZES_TEST_DB_USERNAME` e `RAIZES_TEST_DB_PASSWORD`.
+Execute `./mvnw test` ou `.\mvnw.cmd test`.
 
-Importe a [coleção do Postman](docs/raizes-api.postman_collection.json) e use uma instância de teste da API. Configure `baseUrl`, `adminEmail`, `adminPassword`, `operadorEmail`, `operadorPassword`, `cozinhaEmail` e `cozinhaPassword` nas variáveis da coleção. Use as contas iniciais de `ADMIN` e `OPERADOR`. Para `COZINHA`, escolha um e-mail de teste disponível, pois a conta será criada durante a execução da coleção.
+Por padrão, a suíte usa o H2 em modo PostgreSQL e aplica as migrations. Para executar os testes com PostgreSQL, use um **banco de testes vazio** e configure `RAIZES_TEST_DB_URL`, `RAIZES_TEST_DB_USERNAME` e `RAIZES_TEST_DB_PASSWORD`.
 
-No Runner, execute as pastas na ordem em que aparecem na coleção, de **01 Autenticação e perfis** até **04 Operação e auditoria**. As requisições armazenam os tokens e os identificadores nas variáveis da coleção. Consulte o [plano e as evidências de testes](docs/evidencias-testes.md) para conferir as entradas e as saídas de cada cenário.
+### Testes com Postman
 
-A [especificação](docs/especificacao.md) reúne requisitos, diagramas, decisões de privacidade e as propostas de fidelidade e promoções. O [checklist de entrega](docs/checklist-entrega.md) indica as evidências e as etapas externas pendentes.
+Importe a [coleção do Postman](docs/raizes-api.postman_collection.json) e use uma instância de teste da API.
 
-## Entrega acadêmica local
+Configure estas variáveis da coleção:
 
-O histórico de desenvolvimento está registrado no Git local. O relatório com a identificação acadêmica está na pasta `output/pdf`, fora do controle de versão. A publicação do repositório e o envio do relatório pela área de Trabalhos do AVA estão pendentes.
+- `baseUrl`
+- `adminEmail` e `adminPassword`
+- `operadorEmail` e `operadorPassword`
+- `cozinhaEmail` e `cozinhaPassword`
+
+Use as contas iniciais de `ADMIN` e `OPERADOR`. Para `COZINHA`, escolha um e-mail de teste disponível, pois a conta será criada durante a execução da coleção.
+
+No Collection Runner, execute as pastas na ordem em que aparecem, de **01 Autenticação e perfis** até **04 Operação e auditoria**.
+
+As requisições armazenam os tokens e os identificadores nas variáveis da coleção.
+
+Consulte o [plano e as evidências de testes](docs/evidencias-testes.md) para conferir as entradas e saídas de cada cenário.
+
+### Documentação complementar
+
+- [Especificação do projeto](docs/especificacao.md) — requisitos, diagramas, decisões de privacidade e propostas de fidelidade e promoções.
+- [Contratos da API](docs/contratos-api.md) — endpoints, permissões e respostas HTTP.
+- [Evidências de testes](docs/evidencias-testes.md) — cenários e resultados registrados.
+- [Coleção Postman](docs/raizes-api.postman_collection.json) — requisições para reproduzir os testes.
+
+O DER, os diagramas de domínio e a análise da solução também estão apresentados no relatório acadêmico.
+
+## Repositório e entrega acadêmica
+
+O código-fonte do projeto está disponível publicamente no GitHub:
+
+**[Raízes do Nordeste API — Repositório](https://github.com/ramorim1998/raizes-do-nordeste-api)**
+
+O histórico de desenvolvimento pode ser consultado na página de [commits do projeto](https://github.com/ramorim1998/raizes-do-nordeste-api/commits/main).
+
+O repositório contém o código Java, as migrations Flyway, os testes automatizados, a coleção Postman e a documentação necessária para executar e avaliar a API localmente.
+
+Para a reprodução do projeto, recomenda-se seguir a ordem: configurar o PostgreSQL e o arquivo `.env`, iniciar a API, acessar o Swagger e executar os testes com o Postman.
+
+O arquivo `.env`, contendo credenciais e segredos de execução, não deve ser publicado. Utilize `.env.example` como referência de configuração.
